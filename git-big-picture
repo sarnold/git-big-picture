@@ -63,12 +63,14 @@ TAGS         = 'tags'
 ROOTS        = 'roots'
 MERGES       = 'merges'
 BIFURCATIONS = 'bifurcations'
+BYAUTHOR     = 'byauthor'
 FILTER_SETTINGS = [
         BRANCHES,
         TAGS,
         ROOTS,
         MERGES,
         BIFURCATIONS,
+        BYAUTHOR,
         ]
 FILTER_DEFAULTS = {
         BRANCHES:     True,
@@ -76,6 +78,7 @@ FILTER_DEFAULTS = {
         ROOTS:        True,
         MERGES:       False,
         BIFURCATIONS: False,
+        BYAUTHOR:     False,
         }
 
 EXIT_CODES = {"too_many_args":              1,
@@ -153,6 +156,14 @@ def create_parser():
     filter_group.add_option('-B', '--no-branches',
             action='store_true', dest='no_branches',
             help='do not show commits pointed to by branches')
+
+    filter_group.add_option('-c', '--byauthor',
+            action='store', type='string', dest='byauthor',
+            metavar='ID',
+            help='show commits by author name')
+    filter_group.add_option('-C', '--no-byauthor',
+            action='store_true', dest='no_byauthor',
+            help='do not show commits by author')
 
     filter_group.add_option('-t', '--tags',
             action='store_true', dest='tags',
@@ -409,12 +420,14 @@ def parse_filter_options(opts):
             barf("'%s' and '%s' are mutually exclusive" %
                     ('--' + setting, '--no-' + setting),
                     EXIT_CODES['mutually_exclusive'])
-        elif positive is not None:
-            cmdline_settings[setting] = True
+        if positive is not None:
+            cmdline_settings[setting] = positive
         elif negative is not None:
             cmdline_settings[setting] = False
         else:
             cmdline_settings[setting] = None
+    val = getattr(opts, FORMAT)
+    cmdline_settings[FORMAT] = val if val is not None else None
     return cmdline_settings
 
 
@@ -551,7 +564,7 @@ class Git(object):
             mapping of non-commit sha1s to sets of strings
         """
 
-        output = self("git for-each-ref --format=\"['%(objectname)', '%(*objectname)',  '%(objecttype)', '%(refname)']\"")
+        output = self("git for-each-ref --format=\"['%(objectname)', '%(*authorname)',  '%(objecttype)', '%(refname)']\"")
         lbranch_prefix = 'refs/heads/'
         rbranch_prefix = 'refs/remotes/'
         tag_prefix = 'refs/tags/'
@@ -715,6 +728,7 @@ class CommitGraph(object):
             roots=FILTER_DEFAULTS[ROOTS],
             merges=FILTER_DEFAULTS[MERGES],
             bifurcations=FILTER_DEFAULTS[BIFURCATIONS],
+            byauthor=FILTER_DEFAULTS[BYAUTHOR],
             additional=None):
         """ Filter the commit graph.
 
@@ -738,6 +752,8 @@ class CommitGraph(object):
             include merge commits
         bifurcations : bool
             include bifurcation commits
+        byauthor : "Author Name"
+            include commits by author
         additional : list of SHA1 sums
             any additional commits to include
 
@@ -758,6 +774,8 @@ class CommitGraph(object):
             interesting.extend(self.merges)
         if bifurcations:
             interesting.extend(self.bifurcations)
+        if byauthor:
+            interesting.extend(self.byauthor)
         if additional:
             interesting.extend(additional)
 
